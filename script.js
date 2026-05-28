@@ -68,12 +68,20 @@ const ctx = els.canvas.getContext("2d");
 // breathing room above the suit shape on mobile.
 const W = 1080;
 const H = 1520;
-// Layout ratios — shared between render() and drawEnergyCover() so
-// the suit shape and the bottom logo stay in sync. Bigger shape +
-// slight upward shift to keep clean spacing under the rank labels.
-const SHAPE_CY = H * 0.42;
-const SHAPE_R  = W * 0.38;
-const CARD_RADIUS = 40; // ~3.7% of card width — the classic slight rounding
+// Layout ratios — shared between render() and drawEnergyCover().
+const SHAPE_CY = H * 0.37;
+const SHAPE_R  = W * 0.44;
+const CARD_RADIUS = 40;
+
+// Every suit is drawn inside the same bounding box so the energy
+// logo sits at an identical position regardless of which suit is picked.
+const SHAPE_TOP    = 0.92; // max extent above cy (× r)
+const SHAPE_BOTTOM = 1.00; // max extent below cy (× r)
+const SHAPE_HALF_W = 0.92; // max half-width (× r)
+
+function getShapeBottom(cy, r) {
+  return cy + r * SHAPE_BOTTOM;
+}
 
 /* ---------------------------------------------------------
    File upload (click + drag/drop)
@@ -366,92 +374,103 @@ function roundedRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Concave 4-point star — matches the reference "diamond" silhouette.
+// Concave 4-point star — scaled to the shared suit bounding box.
 function diamondPath(ctx, cx, cy, r) {
-  const k = 0.30; // <0.5 → concave sides (star-like)
-  ctx.moveTo(cx, cy - r);
-  ctx.quadraticCurveTo(cx + r * k, cy - r * k, cx + r, cy);
-  ctx.quadraticCurveTo(cx + r * k, cy + r * k, cx, cy + r);
-  ctx.quadraticCurveTo(cx - r * k, cy + r * k, cx - r, cy);
-  ctx.quadraticCurveTo(cx - r * k, cy - r * k, cx, cy - r);
+  const k = 0.30;
+  const topY = cy - r * SHAPE_TOP;
+  const botY = cy + r * SHAPE_BOTTOM;
+  const hw = r * SHAPE_HALF_W;
+  ctx.moveTo(cx, topY);
+  ctx.quadraticCurveTo(cx + hw * k, cy - (cy - topY) * k, cx + hw, cy);
+  ctx.quadraticCurveTo(cx + hw * k, cy + (botY - cy) * k, cx, botY);
+  ctx.quadraticCurveTo(cx - hw * k, cy + (botY - cy) * k, cx - hw, cy);
+  ctx.quadraticCurveTo(cx - hw * k, cy - (cy - topY) * k, cx, topY);
 }
 
-// Heart with full round lobes and a long tapered bottom point.
+// Classic ♥ love heart — full round lobes, clear V-cleft, sharp bottom point.
+// Fitted to the shared suit bounding box (same footprint as other suits).
 function heartPath(ctx, cx, cy, r) {
-  const lobeTopY  = cy - r * 0.90;
-  const lobeSideX = r * 0.90;
-  const dipY      = cy - r * 0.20;
-  const bottomY   = cy + r * 1.35;
+  const topY = cy - r * SHAPE_TOP;
+  const botY = cy + r * SHAPE_BOTTOM;
+  const hw = r * SHAPE_HALF_W;
+  const H = botY - topY;
 
-  ctx.moveTo(cx, dipY);
+  // Cleft sits below the lobe peaks so the top reads as two distinct bumps
+  const cleftY = topY + H * 0.26;
+
+  ctx.moveTo(cx, cleftY);
 
   // Right lobe
   ctx.bezierCurveTo(
-    cx + r * 0.10, lobeTopY,
-    cx + lobeSideX, lobeTopY,
-    cx + lobeSideX, cy - r * 0.20
+    cx + hw * 0.20, topY,
+    cx + hw, topY + H * 0.06,
+    cx + hw, topY + H * 0.40
   );
 
-  // Right side tapering to long bottom point
+  // Right side tapering to the point
   ctx.bezierCurveTo(
-    cx + lobeSideX,  cy + r * 0.40,
-    cx + r * 0.30,   cy + r * 0.90,
-    cx,              bottomY
+    cx + hw, topY + H * 0.60,
+    cx + hw * 0.36, topY + H * 0.84,
+    cx, botY
   );
 
-  // Left side rising from long bottom point
+  // Left side
   ctx.bezierCurveTo(
-    cx - r * 0.30,   cy + r * 0.90,
-    cx - lobeSideX,  cy + r * 0.40,
-    cx - lobeSideX,  cy - r * 0.20
+    cx - hw * 0.36, topY + H * 0.84,
+    cx - hw, topY + H * 0.60,
+    cx - hw, topY + H * 0.40
   );
 
   // Left lobe
   ctx.bezierCurveTo(
-    cx - lobeSideX, lobeTopY,
-    cx - r * 0.10,  lobeTopY,
-    cx,             dipY
+    cx - hw, topY + H * 0.06,
+    cx - hw * 0.20, topY,
+    cx, cleftY
   );
 }
 
-// Spade — inverted heart with a triangular base.
-// Spade — inverted heart with a triangular base.
+// Spade — same bounding box.
 function spadePath(ctx, cx, cy, r) {
-  ctx.moveTo(cx, cy - r * 0.95);
+  const topY = cy - r * SHAPE_TOP;
+  const botY = cy + r * SHAPE_BOTTOM;
+  const hw = r * SHAPE_HALF_W;
+  const waistY = cy + r * 0.48;
+
+  ctx.moveTo(cx, topY);
   ctx.bezierCurveTo(
-    cx + r * 1.0,  cy - r * 0.15,
-    cx + r * 1.35, cy + r * 0.55,
-    cx + r * 0.25, cy + r * 0.5
+    cx + hw, cy - r * 0.45,
+    cx + hw, cy + r * 0.22,
+    cx + hw * 0.28, waistY
   );
-  ctx.lineTo(cx + r * 0.5,  cy + r * 0.95);
-  ctx.lineTo(cx - r * 0.5,  cy + r * 0.95);
-  ctx.lineTo(cx - r * 0.25, cy + r * 0.5);
+  ctx.lineTo(cx + hw * 0.52, botY);
+  ctx.lineTo(cx - hw * 0.52, botY);
+  ctx.lineTo(cx - hw * 0.28, waistY);
   ctx.bezierCurveTo(
-    cx - r * 1.35, cy + r * 0.55,
-    cx - r * 1.0,  cy - r * 0.15,
-    cx,            cy - r * 0.95
+    cx - hw, cy + r * 0.22,
+    cx - hw, cy - r * 0.45,
+    cx, topY
   );
 }
 
-// Club — three lobes + stem, drawn as a single combined path.
+// Club — same bounding box.
 function clubPath(ctx, cx, cy, r) {
-  const lobeR = r * 0.42;
-  // top lobe
-  ctx.arc(cx, cy - r * 0.35, lobeR, 0, Math.PI * 2);
+  const botY = cy + r * SHAPE_BOTTOM;
+  const hw = r * SHAPE_HALF_W;
+  const lobeR = r * 0.38;
+  const lobeMidY = cy + r * 0.08;
+
+  ctx.arc(cx, cy - r * 0.54, lobeR, 0, Math.PI * 2);
   ctx.closePath();
-  // left lobe
-  ctx.moveTo(cx - r * 0.4 + lobeR, cy + r * 0.15);
-  ctx.arc(cx - r * 0.4, cy + r * 0.15, lobeR, 0, Math.PI * 2);
+  ctx.moveTo(cx - hw * 0.44 + lobeR, lobeMidY);
+  ctx.arc(cx - hw * 0.44, lobeMidY, lobeR, 0, Math.PI * 2);
   ctx.closePath();
-  // right lobe
-  ctx.moveTo(cx + r * 0.4 + lobeR, cy + r * 0.15);
-  ctx.arc(cx + r * 0.4, cy + r * 0.15, lobeR, 0, Math.PI * 2);
+  ctx.moveTo(cx + hw * 0.44 + lobeR, lobeMidY);
+  ctx.arc(cx + hw * 0.44, lobeMidY, lobeR, 0, Math.PI * 2);
   ctx.closePath();
-  // stem
-  ctx.moveTo(cx - r * 0.18, cy + r * 0.95);
-  ctx.lineTo(cx + r * 0.18, cy + r * 0.95);
-  ctx.lineTo(cx + r * 0.08, cy + r * 0.35);
-  ctx.lineTo(cx - r * 0.08, cy + r * 0.35);
+  ctx.moveTo(cx - hw * 0.40, botY);
+  ctx.lineTo(cx + hw * 0.40, botY);
+  ctx.lineTo(cx + hw * 0.10, cy + r * 0.38);
+  ctx.lineTo(cx - hw * 0.10, cy + r * 0.38);
 }
 
 /* ---------------------------------------------------------
@@ -533,15 +552,23 @@ function drawEnergyCover() {
   if (!state.energyCover) return;
   ctx.save();
 
-  // Anchor the logo just below the suit shape so the two read as a
-  // single block. Width tuned to fit comfortably under the bigger
-  // shape without crowding the card's bottom edge.
-  const imgWidth = W * 0.40;
+  const shapeBottom = getShapeBottom(SHAPE_CY, SHAPE_R);
+  const maxBottom = H - CARD_RADIUS - 12;
+  const gap = 4;
+  const availableH = maxBottom - shapeBottom - gap;
+
+  let imgWidth = W * 0.74;
   const aspect = state.energyCover.height / state.energyCover.width;
-  const imgHeight = imgWidth * aspect;
-  const shapeBottom = SHAPE_CY + SHAPE_R; // diamond's lowest point
+  let imgHeight = imgWidth * aspect;
+
+  // Scale down only if the logo would clip past the card bottom
+  if (imgHeight > availableH && availableH > 0) {
+    imgHeight = availableH;
+    imgWidth = imgHeight / aspect;
+  }
+
   const x = (W - imgWidth) / 2;
-  const y = shapeBottom + 8;
+  const y = shapeBottom + gap;
 
   ctx.globalAlpha = 0.95;
   ctx.drawImage(state.energyCover, x, y, imgWidth, imgHeight);
