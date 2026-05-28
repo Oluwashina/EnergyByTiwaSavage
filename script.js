@@ -25,6 +25,8 @@ const SUITS = {
   club:    { label: "Club",    color: "#193a25" },
 };
 
+const ALLOWED_RANKS = ["A", "K", "Q", "J"];
+
 const state = {
   image: null,
   imageUrl: null,
@@ -48,7 +50,6 @@ const els = {
   fileInput: document.getElementById("fileInput"),
   suitChips: document.querySelectorAll(".suit-chip"),
   rankChips: document.querySelectorAll(".rank-chip"),
-  rankInput: document.getElementById("rankInput"),
   nameInput: document.getElementById("nameInput"),
   zoomInput: document.getElementById("zoomInput"),
   resetPositionBtn: document.getElementById("resetPositionBtn"),
@@ -152,21 +153,13 @@ els.suitChips.forEach((chip) => {
 
 els.rankChips.forEach((chip) => {
   chip.addEventListener("click", () => {
+    const rank = chip.dataset.rank;
+    if (!ALLOWED_RANKS.includes(rank)) return;
     els.rankChips.forEach((c) => c.classList.remove("is-active"));
     chip.classList.add("is-active");
-    state.rank = chip.dataset.rank;
-    els.rankInput.value = chip.dataset.rank;
+    state.rank = rank;
     if (state.image) render();
   });
-});
-
-els.rankInput.addEventListener("input", (e) => {
-  const v = e.target.value.toUpperCase().slice(0, 2);
-  state.rank = v || "A";
-  els.rankChips.forEach((c) =>
-    c.classList.toggle("is-active", c.dataset.rank === state.rank)
-  );
-  if (state.image) render();
 });
 
 els.nameInput.addEventListener("input", (e) => {
@@ -299,7 +292,7 @@ function render() {
     drawEnergyCover();
   }
 
-  // 7. Tag (artist / title) and optional handle
+  // 7. Optional handle — anchored just below the energy logo
   drawFooterLine(state.name);
 
   // Release the outer rounded-card clip
@@ -452,25 +445,39 @@ function spadePath(ctx, cx, cy, r) {
   );
 }
 
-// Club — same bounding box.
+// Club — same bounding box; stem top joins the bottom lobes seamlessly.
 function clubPath(ctx, cx, cy, r) {
   const botY = cy + r * SHAPE_BOTTOM;
   const hw = r * SHAPE_HALF_W;
   const lobeR = r * 0.38;
   const lobeMidY = cy + r * 0.08;
+  const spread = hw * 0.40;
+  const topCy = cy - r * 0.54;
+  const leftCx = cx - spread;
+  const rightCx = cx + spread;
 
-  ctx.arc(cx, cy - r * 0.54, lobeR, 0, Math.PI * 2);
+  ctx.arc(cx, topCy, lobeR, 0, Math.PI * 2);
   ctx.closePath();
-  ctx.moveTo(cx - hw * 0.44 + lobeR, lobeMidY);
-  ctx.arc(cx - hw * 0.44, lobeMidY, lobeR, 0, Math.PI * 2);
+  ctx.moveTo(leftCx, lobeMidY);
+  ctx.arc(leftCx, lobeMidY, lobeR, 0, Math.PI * 2);
   ctx.closePath();
-  ctx.moveTo(cx + hw * 0.44 + lobeR, lobeMidY);
-  ctx.arc(cx + hw * 0.44, lobeMidY, lobeR, 0, Math.PI * 2);
+  ctx.moveTo(rightCx, lobeMidY);
+  ctx.arc(rightCx, lobeMidY, lobeR, 0, Math.PI * 2);
   ctx.closePath();
-  ctx.moveTo(cx - hw * 0.40, botY);
-  ctx.lineTo(cx + hw * 0.40, botY);
-  ctx.lineTo(cx + hw * 0.10, cy + r * 0.38);
-  ctx.lineTo(cx - hw * 0.10, cy + r * 0.38);
+
+  // Stem corners sit on the lower-inner arc of each bottom lobe
+  const joinAngle = Math.PI / 3.1;
+  const leftJoinX = leftCx + lobeR * Math.cos(joinAngle);
+  const leftJoinY = lobeMidY + lobeR * Math.sin(joinAngle);
+  const rightJoinX = rightCx + lobeR * Math.cos(Math.PI - joinAngle);
+  const rightJoinY = lobeMidY + lobeR * Math.sin(joinAngle);
+  const baseW = hw * 0.40;
+
+  ctx.moveTo(cx - baseW, botY);
+  ctx.lineTo(cx + baseW, botY);
+  ctx.lineTo(rightJoinX, rightJoinY);
+  ctx.lineTo(leftJoinX, leftJoinY);
+  ctx.closePath();
 }
 
 /* ---------------------------------------------------------
@@ -527,41 +534,43 @@ function drawRankBlock(suit, rank) {
    --------------------------------------------------------- */
 
 function drawFooterLine(name) {
-  // Nothing currently rendered here — the corner rank/suit do all the
-  // identification work, mirroring real playing cards.
-  // If a handle is provided, drop it as a small mark near bottom-center
-  // so it doesn't fight the corner labels.
   if (!name || !name.trim()) return;
   const handle = name.trim().startsWith("@") ? name.trim() : `@${name.trim()}`;
 
+  const energy = getEnergyCoverLayout();
+  const gapBelowEnergy = 8;
+
   ctx.save();
   ctx.fillStyle = INK;
-  ctx.font = '500 22px "DM Serif Display", Georgia, serif';
+  ctx.font = '500 36px "DM Serif Display", Georgia, serif';
   ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
   ctx.globalAlpha = 0.7;
-  ctx.fillText(handle, W / 2, H - 40);
+
+  if (energy) {
+    ctx.textBaseline = "top";
+    ctx.fillText(handle, W / 2, energy.bottom + gapBelowEnergy);
+  } else {
+    ctx.textBaseline = "bottom";
+    ctx.fillText(handle, W / 2, H - 40);
+  }
+
   ctx.restore();
 }
 
-/* ---------------------------------------------------------
-   Draw energy cover image at bottom of card
-   --------------------------------------------------------- */
-
-function drawEnergyCover() {
-  if (!state.energyCover) return;
-  ctx.save();
+function getEnergyCoverLayout() {
+  if (!state.energyCover) return null;
 
   const shapeBottom = getShapeBottom(SHAPE_CY, SHAPE_R);
-  const maxBottom = H - CARD_RADIUS - 12;
-  const gap = 4;
+  const handleReserve =
+    state.name && state.name.trim() ? 52 : 0;
+  const maxBottom = H - CARD_RADIUS - 12 - handleReserve;
+  const gap = 3;
   const availableH = maxBottom - shapeBottom - gap;
 
-  let imgWidth = W * 0.74;
+  let imgWidth = W * 0.80;
   const aspect = state.energyCover.height / state.energyCover.width;
   let imgHeight = imgWidth * aspect;
 
-  // Scale down only if the logo would clip past the card bottom
   if (imgHeight > availableH && availableH > 0) {
     imgHeight = availableH;
     imgWidth = imgHeight / aspect;
@@ -570,8 +579,25 @@ function drawEnergyCover() {
   const x = (W - imgWidth) / 2;
   const y = shapeBottom + gap;
 
+  return { x, y, width: imgWidth, height: imgHeight, bottom: y + imgHeight };
+}
+
+/* ---------------------------------------------------------
+   Draw energy cover image at bottom of card
+   --------------------------------------------------------- */
+
+function drawEnergyCover() {
+  const layout = getEnergyCoverLayout();
+  if (!layout) return;
+  ctx.save();
   ctx.globalAlpha = 0.95;
-  ctx.drawImage(state.energyCover, x, y, imgWidth, imgHeight);
+  ctx.drawImage(
+    state.energyCover,
+    layout.x,
+    layout.y,
+    layout.width,
+    layout.height
+  );
   ctx.restore();
 }
 

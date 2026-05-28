@@ -420,25 +420,6 @@ a { color: inherit; }
   color: var(--bg);
   border-color: var(--ink);
 }
-.rank-input {
-  flex: 1;
-  min-width: 80px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  border-radius: 12px;
-  padding: 0 14px;
-  height: 44px;
-  font: inherit;
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 18px;
-  font-weight: 700;
-  text-align: center;
-  text-transform: uppercase;
-  outline: none;
-  transition: border-color .2s, background .2s;
-}
-.rank-input:focus { border-color: var(--accent); background: rgba(255,255,255,0.06); }
 
 .dz-tip {
   display: block;
