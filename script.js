@@ -34,6 +34,9 @@ const state = {
   generatedBlob: null,
   generatedUrl: null,
   energyCover: null,
+  photoOffset: { x: 0, y: 0 },
+  photoZoom: 1,
+  isDragging: false,
 };
 
 /* ---------------------------------------------------------
@@ -47,6 +50,8 @@ const els = {
   rankChips: document.querySelectorAll(".rank-chip"),
   rankInput: document.getElementById("rankInput"),
   nameInput: document.getElementById("nameInput"),
+  zoomInput: document.getElementById("zoomInput"),
+  resetPositionBtn: document.getElementById("resetPositionBtn"),
   canvas: document.getElementById("coverCanvas"),
   previewEmpty: document.getElementById("previewEmpty"),
   downloadBtn: document.getElementById("downloadBtn"),
@@ -59,7 +64,16 @@ const els = {
 };
 
 const ctx = els.canvas.getContext("2d");
-const SIZE = 1080;
+// Portrait card aspect ~ 9:10. Tall enough to read as a playing card,
+// short enough to feel dense on social (close to IG's 4:5 crop).
+const W = 1080;
+const H = 1200;
+// Layout ratios — shared between render() and drawEnergyCover() so
+// the suit shape and the bottom logo stay in sync. Bigger shape +
+// slight upward shift to keep clean spacing under the rank labels.
+const SHAPE_CY = H * 0.42;
+const SHAPE_R  = W * 0.38;
+const CARD_RADIUS = 40; // ~3.7% of card width — the classic slight rounding
 
 /* ---------------------------------------------------------
    File upload (click + drag/drop)
@@ -98,13 +112,21 @@ function loadImage(file) {
     img.onload = () => {
       state.image = img;
       state.imageUrl = reader.result;
+      resetPhotoTransform();
       els.previewEmpty.classList.add("is-hidden");
+      els.canvas.classList.add("has-image");
       render();
     };
     img.onerror = () => toast("Couldn't read that image. Try another.");
     img.src = reader.result;
   };
   reader.readAsDataURL(file);
+}
+
+function resetPhotoTransform() {
+  state.photoOffset = { x: 0, y: 0 };
+  state.photoZoom = 1;
+  if (els.zoomInput) els.zoomInput.value = 100;
 }
 
 /* ---------------------------------------------------------
@@ -144,6 +166,56 @@ els.nameInput.addEventListener("input", (e) => {
   if (state.image) render();
 });
 
+/* ---------------------------------------------------------
+   Photo positioning — drag inside the canvas to reposition,
+   zoom slider to scale, reset to recenter.
+   --------------------------------------------------------- */
+
+let dragStart = null;
+
+els.canvas.addEventListener("pointerdown", (e) => {
+  if (!state.image) return;
+  state.isDragging = true;
+  els.canvas.classList.add("is-dragging");
+  els.canvas.setPointerCapture(e.pointerId);
+  dragStart = { x: e.clientX, y: e.clientY };
+});
+
+els.canvas.addEventListener("pointermove", (e) => {
+  if (!state.isDragging || !dragStart) return;
+  const rect = els.canvas.getBoundingClientRect();
+  // Convert CSS pixels of movement into canvas-space pixels so the
+  // drag feels 1:1 regardless of how the canvas is scaled on screen.
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const dx = (e.clientX - dragStart.x) * scaleX;
+  const dy = (e.clientY - dragStart.y) * scaleY;
+  state.photoOffset.x += dx;
+  state.photoOffset.y += dy;
+  dragStart = { x: e.clientX, y: e.clientY };
+  render();
+});
+
+function endDrag(e) {
+  if (!state.isDragging) return;
+  state.isDragging = false;
+  els.canvas.classList.remove("is-dragging");
+  try { els.canvas.releasePointerCapture(e.pointerId); } catch {}
+  dragStart = null;
+}
+els.canvas.addEventListener("pointerup", endDrag);
+els.canvas.addEventListener("pointercancel", endDrag);
+
+els.zoomInput.addEventListener("input", (e) => {
+  state.photoZoom = e.target.value / 100;
+  if (state.image) render();
+});
+
+els.resetPositionBtn.addEventListener("click", () => {
+  resetPhotoTransform();
+  if (state.image) render();
+});
+
 /* =========================================================
    Canvas rendering
    ========================================================= */
@@ -152,14 +224,26 @@ function render() {
   if (!state.image) return;
   const suit = SUITS[state.suit];
 
+  // Reset and clip the whole card to a rounded rectangle so the saved
+  // PNG has the classic playing-card silhouette.
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(0, 0, W, H, CARD_RADIUS);
+  } else {
+    roundedRectPath(ctx, 0, 0, W, H, CARD_RADIUS);
+  }
+  ctx.clip();
+
   // 1. Cream background
   ctx.fillStyle = COVER_BG;
-  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillRect(0, 0, W, H);
 
   // 2. Filled suit shape (dark color)
-  const cx = SIZE / 2;
-  const cy = SIZE / 2;
-  const shapeR = SIZE * 0.42;
+  const cx = W / 2;
+  const cy = SHAPE_CY;
+  const shapeR = SHAPE_R;
 
   ctx.save();
   ctx.fillStyle = suit.color;
@@ -167,18 +251,25 @@ function render() {
   ctx.fill();
   ctx.restore();
 
-  // 3. Photo, clipped to the shape (so the dark color is visible
-  //    in the shape's extremities where the photo doesn't reach)
+  // 3. Photo, clipped to the shape. The photo is drawn into a base
+  // square centered on the shape, then the user's drag offset and
+  // zoom are applied so they can frame the subject exactly.
   ctx.save();
   drawSuitPath(ctx, state.suit, cx, cy, shapeR);
   ctx.clip();
 
-  // Photo fills a square inscribed in the shape. We bias upward
-  // a bit so portraits (heads at the top) sit naturally inside.
-  const photoSize = SIZE * 0.78;
-  const photoX = (SIZE - photoSize) / 2;
-  const photoY = (SIZE - photoSize) / 2 + SIZE * 0.02;
-  drawCoverFit(state.image, photoX, photoY, photoSize, photoSize, 0.25);
+  const baseSize = shapeR * 2.0; // covers the shape's full bounding circle
+  const size = baseSize * state.photoZoom;
+  const photoCx = cx + state.photoOffset.x;
+  const photoCy = cy + state.photoOffset.y;
+  drawCoverFit(
+    state.image,
+    photoCx - size / 2,
+    photoCy - size / 2,
+    size,
+    size,
+    0.25
+  );
   ctx.restore();
 
   // 4. Subtle inner shadow on the shape edge for depth
@@ -189,7 +280,7 @@ function render() {
   inner.addColorStop(0, "rgba(0,0,0,0)");
   inner.addColorStop(1, "rgba(0,0,0,0.35)");
   ctx.fillStyle = inner;
-  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillRect(0, 0, W, H);
   ctx.restore();
 
   // 5. Corner labels (rank + suit mark), top-left and bottom-right
@@ -203,7 +294,10 @@ function render() {
   // 7. Tag (artist / title) and optional handle
   drawFooterLine(state.name);
 
-  // 7. Snapshot for download / share
+  // Release the outer rounded-card clip
+  ctx.restore();
+
+  // 8. Snapshot for download / share
   els.canvas.toBlob(
     (blob) => {
       if (state.generatedUrl) URL.revokeObjectURL(state.generatedUrl);
@@ -258,6 +352,20 @@ function drawSuitPath(ctx, suit, cx, cy, r) {
   ctx.closePath();
 }
 
+// Fallback for browsers without CanvasRenderingContext2D.roundRect().
+function roundedRectPath(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
 // Concave 4-point star — matches the reference "diamond" silhouette.
 function diamondPath(ctx, cx, cy, r) {
   const k = 0.30; // <0.5 → concave sides (star-like)
@@ -268,23 +376,45 @@ function diamondPath(ctx, cx, cy, r) {
   ctx.quadraticCurveTo(cx - r * k, cy - r * k, cx, cy - r);
 }
 
-// Classic heart silhouette.
+// Heart with full round lobes and a long tapered bottom point.
 function heartPath(ctx, cx, cy, r) {
-  const top = cy - r * 0.25;
-  const bottom = cy + r * 0.95;
-  ctx.moveTo(cx, bottom);
+  const lobeTopY  = cy - r * 0.90;
+  const lobeSideX = r * 0.90;
+  const dipY      = cy - r * 0.20;
+  const bottomY   = cy + r * 1.35;
+
+  ctx.moveTo(cx, dipY);
+
+  // Right lobe
   ctx.bezierCurveTo(
-    cx - r * 1.35, cy + r * 0.15,
-    cx - r * 1.0,  cy - r * 0.95,
-    cx,            top
+    cx + r * 0.10, lobeTopY,
+    cx + lobeSideX, lobeTopY,
+    cx + lobeSideX, cy - r * 0.20
   );
+
+  // Right side tapering to long bottom point
   ctx.bezierCurveTo(
-    cx + r * 1.0,  cy - r * 0.95,
-    cx + r * 1.35, cy + r * 0.15,
-    cx,            bottom
+    cx + lobeSideX,  cy + r * 0.40,
+    cx + r * 0.30,   cy + r * 0.90,
+    cx,              bottomY
+  );
+
+  // Left side rising from long bottom point
+  ctx.bezierCurveTo(
+    cx - r * 0.30,   cy + r * 0.90,
+    cx - lobeSideX,  cy + r * 0.40,
+    cx - lobeSideX,  cy - r * 0.20
+  );
+
+  // Left lobe
+  ctx.bezierCurveTo(
+    cx - lobeSideX, lobeTopY,
+    cx - r * 0.10,  lobeTopY,
+    cx,             dipY
   );
 }
 
+// Spade — inverted heart with a triangular base.
 // Spade — inverted heart with a triangular base.
 function spadePath(ctx, cx, cy, r) {
   ctx.moveTo(cx, cy - r * 0.95);
@@ -332,31 +462,32 @@ function drawCornerLabels(suit, rank) {
   drawRankBlock(suit, rank);
 
   ctx.save();
-  ctx.translate(SIZE / 2, SIZE / 2);
+  ctx.translate(W / 2, H / 2);
   ctx.rotate(Math.PI);
-  ctx.translate(-SIZE / 2, -SIZE / 2);
+  ctx.translate(-W / 2, -H / 2);
   drawRankBlock(suit, rank);
   ctx.restore();
 }
 
 function drawRankBlock(suit, rank) {
-  const pad = 70;
+  const pad = 60;
   ctx.save();
   ctx.fillStyle = INK;
   ctx.textBaseline = "top";
   ctx.textAlign = "left";
 
-  // Rank letter (large serif)
-  const rankSize = 200;
+  // Rank letter (large serif). Scaled for the 1080×1200 card so the
+  // corner index doesn't crowd the central suit shape.
+  const rankSize = 120;
   ctx.font = `400 ${rankSize}px "DM Serif Display", "Bodoni Moda", Georgia, serif`;
   ctx.fillText(rank, pad, pad);
   const rankWidth = ctx.measureText(rank).width;
 
   // Suit mark — drawn as a small filled path so it stays consistent
   // with the big suit shape regardless of the user's system font.
+  const markR = 38;
   const markCx = pad + rankWidth / 2;
-  const markCy = pad + rankSize + 65;
-  const markR = 55;
+  const markCy = pad + rankSize + 40;
   drawSuitPath(ctx, suit, markCx, markCy, markR);
   ctx.fill();
 
@@ -381,7 +512,7 @@ function drawFooterLine(name) {
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   ctx.globalAlpha = 0.7;
-  ctx.fillText(handle, SIZE / 2, SIZE - 40);
+  ctx.fillText(handle, W / 2, H - 40);
   ctx.restore();
 }
 
@@ -392,13 +523,17 @@ function drawFooterLine(name) {
 function drawEnergyCover() {
   if (!state.energyCover) return;
   ctx.save();
-  
-  // Position the energy cover at the bottom center
-  const imgWidth = 300;
-  const imgHeight = 200;
-  const x = (SIZE - imgWidth) / 2;
-  const y = SIZE - imgHeight - 60;
-  
+
+  // Anchor the logo just below the suit shape so the two read as a
+  // single block. Width tuned to fit comfortably under the bigger
+  // shape without crowding the card's bottom edge.
+  const imgWidth = W * 0.40;
+  const aspect = state.energyCover.height / state.energyCover.width;
+  const imgHeight = imgWidth * aspect;
+  const shapeBottom = SHAPE_CY + SHAPE_R; // diamond's lowest point
+  const x = (W - imgWidth) / 2;
+  const y = shapeBottom + 8;
+
   ctx.globalAlpha = 0.95;
   ctx.drawImage(state.energyCover, x, y, imgWidth, imgHeight);
   ctx.restore();
@@ -504,7 +639,33 @@ if (document.fonts && document.fonts.ready) {
 
 const energyCoverImg = new Image();
 energyCoverImg.onload = () => {
-  state.energyCover = energyCoverImg;
+  // The source PNG has a solid black background. We knock it out once
+  // here by walking pixels and zeroing alpha on near-black ones, so
+  // the logo composites cleanly over the cream card.
+  state.energyCover = removeBlackBackground(energyCoverImg, 40);
   if (state.image) render();
 };
 energyCoverImg.src = "images/energycover.PNG";
+
+function removeBlackBackground(img, threshold = 30) {
+  const off = document.createElement("canvas");
+  off.width = img.naturalWidth || img.width;
+  off.height = img.naturalHeight || img.height;
+  const offCtx = off.getContext("2d");
+  offCtx.drawImage(img, 0, 0);
+  const data = offCtx.getImageData(0, 0, off.width, off.height);
+  const px = data.data;
+  for (let i = 0; i < px.length; i += 4) {
+    // Brightness as the max channel — keeps saturated colors (red, yellow)
+    // while killing only the actual black background.
+    const m = Math.max(px[i], px[i + 1], px[i + 2]);
+    if (m < threshold) {
+      px[i + 3] = 0;
+    } else if (m < threshold * 2) {
+      // Smooth edge: fade alpha for near-black anti-aliasing pixels
+      px[i + 3] = Math.round(((m - threshold) / threshold) * 255);
+    }
+  }
+  offCtx.putImageData(data, 0, 0);
+  return off;
+}

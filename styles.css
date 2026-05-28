@@ -143,8 +143,15 @@ a { color: inherit; }
   align-items: center;
 }
 
+/* Prevent the text column from overflowing and squishing hero-art */
+.hero-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; gap: 64px; }
+  .hero-text { overflow: visible; }
 }
 
 .eyebrow {
@@ -161,11 +168,17 @@ a { color: inherit; }
 
 .title {
   font-family: var(--font-display);
-  font-size: clamp(64px, 11vw, 160px);
+  /* Cap at 110px on desktop so the Alfa Slab "ENERGY" line
+     doesn't overflow the left column and squish hero-art */
+  font-size: clamp(48px, 8vw, 110px);
   line-height: 0.88;
   letter-spacing: -0.04em;
   font-weight: 700;
   margin: 0 0 28px;
+}
+
+@media (max-width: 900px) {
+  .title { font-size: clamp(64px, 14vw, 120px); }
 }
 .title-line { display: block; }
 .title-outline {
@@ -174,6 +187,29 @@ a { color: inherit; }
   background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
   -webkit-background-clip: text;
   background-clip: text;
+}
+
+/* Chunky retro "ENERGY" — yellow fill with a stacked red 3D extrude.
+   Palette sampled from images/energycover.PNG.
+   Offsets are in em so the depth scales with the title's font-size. */
+.title-energy {
+  font-family: "Alfa Slab One", Georgia, serif;
+  font-weight: 400;
+  color: #ecab33;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  margin-top: 0.08em;
+  text-shadow:
+    0.018em 0.018em 0 #c41e1e,
+    0.036em 0.036em 0 #c41e1e,
+    0.054em 0.054em 0 #b71c1c,
+    0.072em 0.072em 0 #b71c1c,
+    0.09em  0.09em  0 #a01818,
+    0.108em 0.108em 0 #a01818,
+    0.126em 0.126em 0 #8a1414,
+    0.144em 0.144em 0 #8a1414,
+    0.16em  0.16em  0.02em rgba(0, 0, 0, 0.45);
 }
 
 .subtitle {
@@ -412,6 +448,69 @@ a { color: inherit; }
   letter-spacing: 0.04em;
 }
 
+/* Zoom slider + reset button */
+.control-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.reset-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color .2s, background .2s;
+}
+.reset-btn:hover { color: var(--ink); background: rgba(255,255,255,0.05); }
+
+.zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px;
+}
+.zoom-icon { color: var(--ink-mute); display: inline-flex; }
+
+#zoomInput {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  outline: none;
+  cursor: pointer;
+}
+#zoomInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--accent);
+  cursor: grab;
+  transition: transform .15s;
+}
+#zoomInput::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.1); }
+#zoomInput::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--accent);
+  cursor: grab;
+}
+
+.hint {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
 #nameInput {
   background: rgba(255,255,255,0.04);
   border: 1px solid var(--line);
@@ -457,7 +556,7 @@ a { color: inherit; }
 .preview-frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 9 / 10;
   border-radius: var(--radius);
   overflow: hidden;
   background:
@@ -468,7 +567,11 @@ a { color: inherit; }
 #coverCanvas {
   width: 100%; height: 100%;
   display: block;
+  cursor: default;
+  touch-action: none;
 }
+#coverCanvas.has-image { cursor: grab; }
+#coverCanvas.is-dragging { cursor: grabbing; }
 .preview-empty {
   position: absolute;
   inset: 0;
