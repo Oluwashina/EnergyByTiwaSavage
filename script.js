@@ -64,10 +64,10 @@ const els = {
 };
 
 const ctx = els.canvas.getContext("2d");
-// Portrait card aspect ~ 9:10. Tall enough to read as a playing card,
-// short enough to feel dense on social (close to IG's 4:5 crop).
+// Portrait card aspect 1080×1520. Extra height gives rank labels
+// breathing room above the suit shape on mobile.
 const W = 1080;
-const H = 1200;
+const H = 1520;
 // Layout ratios — shared between render() and drawEnergyCover() so
 // the suit shape and the bottom logo stay in sync. Bigger shape +
 // slight upward shift to keep clean spacing under the rank labels.
@@ -471,23 +471,32 @@ function drawCornerLabels(suit, rank) {
 
 function drawRankBlock(suit, rank) {
   const pad = 60;
+  const rankSize = 120;
+  const markR = 36;
+  // Cream gap between the rank letter's lowest pixel and the suit mark top
+  const gapAfterLetter = 26;
+  // Q / J / G have tails that sit lower — add extra clearance
+  const tailExtra = /[QGJqgj]/.test(rank) ? 18 : 0;
+
   ctx.save();
   ctx.fillStyle = INK;
-  ctx.textBaseline = "top";
   ctx.textAlign = "left";
+  ctx.font = `700 ${rankSize}px "Playfair Display", "Libre Baskerville", Georgia, serif`;
 
-  // Rank letter (large serif). Scaled for the 1080×1200 card so the
-  // corner index doesn't crowd the central suit shape.
-  const rankSize = 120;
-  ctx.font = `400 ${rankSize}px "DM Serif Display", "Bodoni Moda", Georgia, serif`;
-  ctx.fillText(rank, pad, pad);
-  const rankWidth = ctx.measureText(rank).width;
+  // Alphabetic baseline gives accurate bounding boxes for tailed letters
+  ctx.textBaseline = "alphabetic";
+  const metrics = ctx.measureText(rank);
+  const ascent  = metrics.actualBoundingBoxAscent  || rankSize * 0.82;
+  const descent = metrics.actualBoundingBoxDescent || rankSize * 0.18;
+  const baselineY = pad + ascent;
 
-  // Suit mark — drawn as a small filled path so it stays consistent
-  // with the big suit shape regardless of the user's system font.
-  const markR = 38;
+  ctx.fillText(rank, pad, baselineY);
+  const rankWidth = metrics.width;
+
+  const letterBottom = baselineY + descent;
   const markCx = pad + rankWidth / 2;
-  const markCy = pad + rankSize + 40;
+  const markCy = letterBottom + gapAfterLetter + tailExtra + markR;
+
   drawSuitPath(ctx, suit, markCx, markCy, markR);
   ctx.fill();
 

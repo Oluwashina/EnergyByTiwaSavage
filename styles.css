@@ -409,9 +409,9 @@ a { color: inherit; }
   border: 1px solid var(--line);
   color: var(--ink-dim);
   border-radius: 12px;
-  font-family: var(--font-display);
+  font-family: "Playfair Display", Georgia, serif;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   transition: all .2s;
 }
 .rank-chip:hover { color: var(--ink); border-color: var(--line-strong); }
@@ -430,8 +430,9 @@ a { color: inherit; }
   padding: 0 14px;
   height: 44px;
   font: inherit;
-  font-family: "DM Serif Display", Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-size: 18px;
+  font-weight: 700;
   text-align: center;
   text-transform: uppercase;
   outline: none;
@@ -556,7 +557,7 @@ a { color: inherit; }
 .preview-frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 9 / 10;
+  aspect-ratio: 1080 / 1520;
   border-radius: var(--radius);
   overflow: hidden;
   background:
