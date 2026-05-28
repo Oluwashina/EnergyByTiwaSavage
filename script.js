@@ -552,11 +552,90 @@ function drawEnergyCover() {
    Download + Share
    ========================================================= */
 
+function cardFilename(ext = "png") {
+  return `energy-${state.rank.toLowerCase()}-${state.suit}.${ext}`;
+}
+
+// WhatsApp (and some Android share targets) reject PNGs with alpha and
+// mixed file+url+text payloads. Export a flat JPEG on cream for sharing.
+function createShareableJpegBlob() {
+  return new Promise((resolve, reject) => {
+    if (!state.generatedBlob) {
+      reject(new Error("No card image"));
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const off = document.createElement("canvas");
+      off.width = W;
+      off.height = H;
+      const octx = off.getContext("2d");
+      octx.fillStyle = COVER_BG;
+      octx.fillRect(0, 0, W, H);
+      octx.drawImage(img, 0, 0);
+      off.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(img.src);
+          blob ? resolve(blob) : reject(new Error("Could not create JPEG"));
+        },
+        "image/jpeg",
+        0.92
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error("Could not read card image"));
+    };
+    img.src = state.generatedUrl;
+  });
+}
+
+async function createShareFile() {
+  const jpegBlob = await createShareableJpegBlob();
+  return new File([jpegBlob], cardFilename("jpg"), {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
+async function shareCardImage() {
+  if (!state.generatedBlob) return false;
+
+  if (!navigator.share) return false;
+
+  try {
+    const file = await createShareFile();
+    if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+      return false;
+    }
+    // Share the image only — mixing files with url/text breaks WhatsApp.
+    await navigator.share({ files: [file] });
+    return true;
+  } catch (err) {
+    if (err.name === "AbortError") return true;
+    console.warn("Image share failed:", err);
+    return false;
+  }
+}
+
+async function shareCardText() {
+  const message = `${SONG.shareText} ${SONG.shareUrl}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ text: message });
+      return true;
+    } catch (err) {
+      if (err.name === "AbortError") return true;
+    }
+  }
+  return false;
+}
+
 els.downloadBtn.addEventListener("click", () => {
   if (!state.generatedBlob) return;
   const a = document.createElement("a");
   a.href = state.generatedUrl;
-  a.download = `energy-release-${state.rank.toLowerCase()}-${state.suit}.png`;
+  a.download = cardFilename("png");
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -565,23 +644,12 @@ els.downloadBtn.addEventListener("click", () => {
 
 els.shareBtn.addEventListener("click", async () => {
   if (!state.generatedBlob) return;
-  const file = new File([state.generatedBlob], "energy-release-card.png", {
-    type: "image/png",
-  });
 
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: `${SONG.artist} — ${SONG.title}`,
-        text: SONG.shareText,
-        url: SONG.shareUrl,
-      });
-      return;
-    } catch (err) {
-      if (err.name !== "AbortError") console.warn(err);
-    }
-  }
+  const shared = await shareCardImage();
+  if (shared) return;
+
+  const sharedText = await shareCardText();
+  if (sharedText) return;
 
   const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
     SONG.shareText
@@ -603,12 +671,19 @@ els.shareFacebook.addEventListener("click", (e) => {
   )}`;
   window.open(url, "_blank", "noopener");
 });
-els.shareWhatsapp.addEventListener("click", (e) => {
+els.shareWhatsapp.addEventListener("click", async (e) => {
   e.preventDefault();
+
+  // Try native image share first (pick WhatsApp in the sheet).
+  const shared = await shareCardImage();
+  if (shared) return;
+
+  // wa.me cannot attach images — open with link text and prompt download.
   const url = `https://wa.me/?text=${encodeURIComponent(
     `${SONG.shareText} ${SONG.shareUrl}`
   )}`;
   window.open(url, "_blank", "noopener");
+  toast("Download your card, then attach it in WhatsApp");
 });
 els.copyLinkBtn.addEventListener("click", async () => {
   try {
