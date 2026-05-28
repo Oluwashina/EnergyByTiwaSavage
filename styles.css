@@ -476,13 +476,20 @@ a { color: inherit; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: clamp(12px, 3vw, 16px);
   color: var(--ink-mute);
   pointer-events: none;
+  padding: 20px;
 }
 .preview-empty.is-hidden { display: none; }
+.preview-empty p {
+  font-size: clamp(14px, 3.5vw, 16px);
+  line-height: 1.4;
+  margin: 0;
+  text-align: center;
+}
 .empty-mark {
-  font-size: 44px;
+  font-size: clamp(32px, 8vw, 44px);
   color: var(--accent);
   opacity: 0.7;
   animation: spin 14s linear infinite;
