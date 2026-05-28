@@ -33,6 +33,7 @@ const state = {
   name: "",
   generatedBlob: null,
   generatedUrl: null,
+  energyCover: null,
 };
 
 /* ---------------------------------------------------------
@@ -194,7 +195,12 @@ function render() {
   // 5. Corner labels (rank + suit mark), top-left and bottom-right
   drawCornerLabels(state.suit, state.rank);
 
-  // 6. Tag (artist / title) and optional handle
+  // 6. Energy cover image at bottom
+  if (state.energyCover) {
+    drawEnergyCover();
+  }
+
+  // 7. Tag (artist / title) and optional handle
   drawFooterLine(state.name);
 
   // 7. Snapshot for download / share
@@ -379,6 +385,25 @@ function drawFooterLine(name) {
   ctx.restore();
 }
 
+/* ---------------------------------------------------------
+   Draw energy cover image at bottom of card
+   --------------------------------------------------------- */
+
+function drawEnergyCover() {
+  if (!state.energyCover) return;
+  ctx.save();
+  
+  // Position the energy cover at the bottom center
+  const imgWidth = 300;
+  const imgHeight = 200;
+  const x = (SIZE - imgWidth) / 2;
+  const y = SIZE - imgHeight - 60;
+  
+  ctx.globalAlpha = 0.95;
+  ctx.drawImage(state.energyCover, x, y, imgWidth, imgHeight);
+  ctx.restore();
+}
+
 /* =========================================================
    Download + Share
    ========================================================= */
@@ -472,3 +497,14 @@ if (document.fonts && document.fonts.ready) {
     if (state.image) render();
   });
 }
+
+/* ---------------------------------------------------------
+   Load energy cover image
+   --------------------------------------------------------- */
+
+const energyCoverImg = new Image();
+energyCoverImg.onload = () => {
+  state.energyCover = energyCoverImg;
+  if (state.image) render();
+};
+energyCoverImg.src = "images/energycover.PNG";
