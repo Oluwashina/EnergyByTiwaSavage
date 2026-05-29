@@ -193,6 +193,8 @@ a { color: inherit; }
    Palette sampled from images/energycover.PNG.
    Offsets are in em so the depth scales with the title's font-size. */
 .title-energy {
+  display: inline-block;
+  transform-origin: left bottom;
   font-family: "Alfa Slab One", Georgia, serif;
   font-weight: 400;
   color: #ecab33;
@@ -210,6 +212,59 @@ a { color: inherit; }
     0.126em 0.126em 0 #8a1414,
     0.144em 0.144em 0 #8a1414,
     0.16em  0.16em  0.02em rgba(0, 0, 0, 0.45);
+  animation:
+    energy-enter 0.8s cubic-bezier(0.22, 1, 0.36, 1) both,
+    energy-glow 2.6s ease-in-out 0.8s infinite;
+}
+
+@keyframes energy-enter {
+  from {
+    opacity: 0.88;
+    transform: scale(0.97) translateY(0.06em);
+    text-shadow:
+      0.01em 0.01em 0 #c41e1e,
+      0.022em 0.022em 0 #c41e1e,
+      0.034em 0.034em 0 #b71c1c,
+      0.046em 0.046em 0 #b71c1c,
+      0.058em 0.058em 0 #a01818,
+      0.07em 0.07em 0 #a01818,
+      0.082em 0.082em 0 #8a1414,
+      0.094em 0.094em 0 #8a1414,
+      0.106em 0.106em 0.01em rgba(0, 0, 0, 0.35);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    text-shadow:
+      0.018em 0.018em 0 #c41e1e,
+      0.036em 0.036em 0 #c41e1e,
+      0.054em 0.054em 0 #b71c1c,
+      0.072em 0.072em 0 #b71c1c,
+      0.09em  0.09em  0 #a01818,
+      0.108em 0.108em 0 #a01818,
+      0.126em 0.126em 0 #8a1414,
+      0.144em 0.144em 0 #8a1414,
+      0.16em  0.16em  0.02em rgba(0, 0, 0, 0.45);
+  }
+}
+
+@keyframes energy-glow {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 0.12em rgba(236, 171, 51, 0.15))
+      drop-shadow(0 0 0.45em rgba(255, 87, 34, 0.2));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 0.22em rgba(236, 171, 51, 0.45))
+      drop-shadow(0 0 0.85em rgba(255, 87, 34, 0.4));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-energy {
+    animation: none;
+  }
 }
 
 .subtitle {
