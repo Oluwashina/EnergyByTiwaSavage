@@ -21,10 +21,10 @@ const RANK_FONT_WEIGHT = "600";
 const PHOTO_FALLBACK = "#3a1212"; // safety, never visible normally
 
 const SUITS = {
-  diamond: { label: "Diamond", color: "#7a1818" },
-  heart:   { label: "Heart",   color: "#0e4a5b" },
+  diamond: { label: "Diamond", color: "#000000" }, // Diamonds.png
+  heart:   { label: "Heart",   color: "#00455e" }, // Hearts.png
   spade:   { label: "Spade",   color: "#1c1c2e" },
-  club:    { label: "Club",    color: "#193a25" },
+  club:    { label: "Club",    color: "#e1b144" }, // Clubs.png
 };
 
 const ALLOWED_RANKS = ["A", "K", "Q", "J"];
@@ -497,7 +497,8 @@ function drawCornerLabels(suit, rank) {
   ctx.restore();
 }
 
-function drawRankBlock(suit, rank) {
+function drawRankBlock(suitKey, rank) {
+  const suitColor = SUITS[suitKey].color;
   const pad = 60;
   const rankSize = 120;
   const markR = 36;
@@ -507,7 +508,7 @@ function drawRankBlock(suit, rank) {
   const tailExtra = /[QGJqgj]/.test(rank) ? 10 : 0;
 
   ctx.save();
-  ctx.fillStyle = INK;
+  ctx.fillStyle = suitColor;
   ctx.textAlign = "left";
   ctx.font = `${RANK_FONT_WEIGHT} ${rankSize}px ${RANK_FONT}`;
 
@@ -525,7 +526,7 @@ function drawRankBlock(suit, rank) {
   const markCx = pad + rankWidth / 2;
   const markCy = letterBottom + gapAfterLetter + tailExtra + markR;
 
-  drawSuitPath(ctx, suit, markCx, markCy, markR);
+  drawSuitPath(ctx, suitKey, markCx, markCy, markR);
   ctx.fill();
 
   ctx.restore();
