@@ -27,6 +27,14 @@
   --maxw: 1240px;
 }
 
+@font-face {
+  font-family: "Hackensack";
+  src: url("fonts/Hackensack-SemiBold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -464,9 +472,9 @@ a { color: inherit; }
   border: 1px solid var(--line);
   color: var(--ink-dim);
   border-radius: 12px;
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: "Hackensack", sans-serif;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   transition: all .2s;
 }
 .rank-chip:hover { color: var(--ink); border-color: var(--line-strong); }

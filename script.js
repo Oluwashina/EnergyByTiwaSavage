@@ -16,6 +16,8 @@ const SONG = {
 
 const COVER_BG = "#f1e8cf";      // cream
 const INK = "#0a1d3f";           // deep navy for rank + handle text
+const RANK_FONT = '"Hackensack", sans-serif';
+const RANK_FONT_WEIGHT = "600";
 const PHOTO_FALLBACK = "#3a1212"; // safety, never visible normally
 
 const SUITS = {
@@ -500,14 +502,14 @@ function drawRankBlock(suit, rank) {
   const rankSize = 120;
   const markR = 36;
   // Cream gap between the rank letter's lowest pixel and the suit mark top
-  const gapAfterLetter = 26;
+  const gapAfterLetter = 10;
   // Q / J / G have tails that sit lower — add extra clearance
-  const tailExtra = /[QGJqgj]/.test(rank) ? 18 : 0;
+  const tailExtra = /[QGJqgj]/.test(rank) ? 10 : 0;
 
   ctx.save();
   ctx.fillStyle = INK;
   ctx.textAlign = "left";
-  ctx.font = `700 ${rankSize}px "Playfair Display", "Libre Baskerville", Georgia, serif`;
+  ctx.font = `${RANK_FONT_WEIGHT} ${rankSize}px ${RANK_FONT}`;
 
   // Alphabetic baseline gives accurate bounding boxes for tailed letters
   ctx.textBaseline = "alphabetic";
@@ -686,7 +688,7 @@ function toast(msg) {
 
 /* ---------------------------------------------------------
    Re-render after fonts load so the first canvas paint
-   already uses the serif display face.
+   already uses Hackensack for corner ranks.
    --------------------------------------------------------- */
 
 if (document.fonts && document.fonts.ready) {
